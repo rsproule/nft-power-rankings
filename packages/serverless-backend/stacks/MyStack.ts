@@ -1,6 +1,8 @@
 import * as sst from '@serverless-stack/resources'
 import { HttpLambdaAuthorizer } from '@aws-cdk/aws-apigatewayv2-authorizers'
-import { Role, ServicePrincipal, ManagedPolicy } from '@aws-cdk/aws-iam'
+import {  PolicyStatement } from '@aws-cdk/aws-iam';
+import * as cognito from "@aws-cdk/aws-cognito";
+
 import {
   ApiAuthorizationType,
   PermissionType,
@@ -37,18 +39,27 @@ export default class MyStack extends sst.Stack {
         partitionKey: 'projectId',
         sortKey: 'user-vote-id',
       },
+      
     })
+
+    // const cognitoUserPool = new cognito.CfnIdentityPool(this, 'UserPool', {
+    //   developerProviderName: 'eth.user.pool',
+    //   allowUnauthenticatedIdentities: false,
+    // })
+
 
     const cognitoPool = new sst.Auth(this, 'AuthPool', {
       cognito: {
         userPool: {
           userPoolName: 'eth-user-pool',
-        },
+        }
       },
+      
     })
 
     // Create a HTTP API
     const api = new sst.Api(this, 'Api', {
+      cors: true,
       routes: {
         'GET /nonce/{id}': {
           function: {
@@ -64,6 +75,10 @@ export default class MyStack extends sst.Stack {
           function: {
             handler: 'src/users.login',
             permissions: [usersTable],
+            initialPolicy: [new PolicyStatement({
+              actions: ['cognito-identity:GetOpenIdTokenForDeveloperIdentity'],
+              resources: [`arn:aws:cognito-identity:us-west-1:597616687767:identitypool/${cognitoPool.cognitoIdentityPoolId}`]
+            })],
             environment: {
               USER_TABLE_NAME: usersTable.tableName,
               AUTH_POOL_ID: cognitoPool.cognitoIdentityPoolId,
@@ -78,8 +93,16 @@ export default class MyStack extends sst.Stack {
           permissions: [[usersTable, PermissionType.ALL]],
         },
         'POST /votes': {
-          function: 'src/votes.post',
-          permissions: [[votesTable, PermissionType.ALL]],
+          function: {
+            handler: 'src/votes.post',
+            permissions: [votesTable],
+            environment: {
+              VOTE_TABLE_NAME: votesTable.tableName,
+            }
+          },
+          // authorizationType: ApiAuthorizationType.AWS_IAM,
+          
+          
         },
       },
     })
@@ -89,6 +112,7 @@ export default class MyStack extends sst.Stack {
       ApiEndpoint: api.url,
       votesTable: votesTable.tableName,
       usersTable: usersTable.tableName,
+      cognitoPool: cognitoPool.cognitoIdentityPoolId
     })
   }
 }

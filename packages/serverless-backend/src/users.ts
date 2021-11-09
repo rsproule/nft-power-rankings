@@ -100,7 +100,7 @@ const getTokenId = async (userId: string) => {
   const param = {
     IdentityPoolId: authPoolId,
     Logins: {
-      eth: userId,
+      'eth.user.pool': userId,
     },
   }
   const identity = await cognitoIdentity

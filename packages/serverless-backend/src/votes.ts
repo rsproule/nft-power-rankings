@@ -6,21 +6,32 @@ const dynamoDB: AWS.DynamoDB.DocumentClient = new AWS.DynamoDB.DocumentClient({
   region: 'us-west-1',
 })
 
-export const post: APIGatewayProxyHandlerV2 = async (event: APIGatewayProxyEventV2) => {
-  if (!validateRequest(event)) return { statusCode: 400, body: 'Bad Request' };
-  const request = JSON.parse(event.body as string) as StringMap;
-  const voteWrite = await dynamoDB
-    .put({
-      TableName: 'votes',
-      Item: postBodyParse(request),
-    })
-    .promise()
-
-  if (voteWrite.$response.error) {
+export const post: APIGatewayProxyHandlerV2 = async (
+  event: APIGatewayProxyEventV2,
+) => {
+  if (!validateRequest(event)) return { statusCode: 400, body: 'Bad Request' }
+  const request = JSON.parse(event.body as string) as StringMap
+  let voteWrite
+  try {
+    voteWrite = await dynamoDB
+      .put({
+        TableName: process.env.VOTE_TABLE_NAME!,
+        Item: postBodyParse(request),
+        ConditionExpression: 'attribute_not_exists(#uservoteid)',
+        ExpressionAttributeNames: {
+          '#uservoteid': 'user-vote-id',
+        },
+      })
+      .promise()
+  } catch (e) {
+    const error = e as AWS.AWSError
+    if (error.code === 'ConditionalCheckFailedException') {
+      return { statusCode: 409, body: 'Conflict' }
+    }
     return {
       statusCode: 500,
       body: JSON.stringify({
-        error: voteWrite.$response.error,
+        error: error.message,
       }),
     }
   }
@@ -40,22 +51,32 @@ const validateRequest = (event: APIGatewayProxyEventV2) => {
   if (
     body.userId === undefined ||
     body.projectId === undefined ||
-    body.voteId === undefined ||
     body.winnerId === undefined ||
     body.loserId === undefined
   ) {
+    return false
+  }
+
+  if (body.winnerId === body.loserId) {
     return false
   }
   return true
 }
 
 const postBodyParse = (body: StringMap) => {
+  let voteId
+  if (body.winnerId > body.loserId) {
+    voteId = `${body.winnerId}-${body.loserId}`
+  } else {
+    voteId = `${body.loserId}-${body.winnerId}`
+  }
   return {
     userId: body.userId,
     projectId: body.projectId,
-    voteId: body.voteId,
+    voteId: voteId,
     winnerId: body.winnerId,
     loserId: body.loserId,
+    'user-vote-id': body.userId + '-' + voteId,
   } as Vote
 }
 
