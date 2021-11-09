@@ -1,0 +1,5 @@
+{
+  "name": "nft-ranking-serverless",
+  "region": "us-west-1",
+  "main": "stacks/index.ts"
+}
