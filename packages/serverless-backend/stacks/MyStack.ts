@@ -67,7 +67,7 @@ export default class MyStack extends sst.Stack {
             environment: {
               USER_TABLE_NAME: usersTable.tableName,
               AUTH_POOL_ID: cognitoPool.cognitoIdentityPoolId,
-            },  
+            },
           },
         },
         'GET /users/{id}': 'src/users.get',

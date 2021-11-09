@@ -56,6 +56,7 @@ export const login: APIGatewayProxyHandlerV2 = async (
   event: APIGatewayProxyEventV2,
 ) => {
   if (validateLoginBody(event)) {
+    console.log(process.env.USER_TABLE_NAME)
     const bodyObject = JSON.parse(event.body!)
     const userId = bodyObject.id
     const signature = bodyObject.signature
@@ -146,7 +147,7 @@ const updateNonce = async (userId: string) => {
   try {
     await dynamoDB
       .put({
-        TableName: 'local-nft-ranks-nft-ranking-serverless-Users',
+        TableName: process.env.USER_TABLE_NAME!,
         Item: {
           userId: userId,
           nonce: newNonce,
@@ -160,7 +161,7 @@ const updateNonce = async (userId: string) => {
 }
 
 const getNonce = async (userId: string): Promise<string | null> => {
-  const tableName = 'local-nft-ranks-nft-ranking-serverless-Users'
+  const tableName = process.env.USER_TABLE_NAME!
   const response: AWS.DynamoDB.GetItemOutput = await dynamoDB
     .get({
       TableName: tableName,
