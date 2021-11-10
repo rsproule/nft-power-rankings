@@ -1,5 +1,5 @@
 import { Contract } from 'ethers'
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { abi as ERC721 } from '@openzeppelin/contracts/build/contracts/ERC721.json'
 import { Provider } from '@ethersproject/providers'
 import { fetchJson } from '@ethersproject/web'
@@ -7,8 +7,6 @@ import { Button, Col, Row, Image, Card, Empty, Divider } from 'antd'
 import axios from 'axios'
 import { AwsClient } from 'aws4fetch'
 import Meta from 'antd/lib/card/Meta'
-
-
 
 const login = async (provider, dispatch, setAwsClient) => {
   const pubKey = await provider.getSigner().getAddress()
@@ -47,16 +45,25 @@ type MainGameProps = {
   provider: Provider
   awsClient: AwsClient
   userAddress: string
+  login: () => AwsClient | null
 }
 
 type Vote = {
-    userId: string,
-    projectId: string,
-    winnerId: string,
-    loserId: string
+  userId: string
+  projectId: string
+  winnerId: string
+  loserId: string
 }
 
-const vote = async (vote: Vote, awsClient: AwsClient) => {
+const vote = async (
+  vote: Vote,
+  awsClient: AwsClient,
+  login: any,
+  loadNew: any,
+) => {
+  if (!awsClient) {
+    awsClient = await login()
+  }
   const request = await awsClient.sign(
     'https://krtj8wyxtl.execute-api.us-west-1.amazonaws.com/votes',
     {
@@ -64,17 +71,36 @@ const vote = async (vote: Vote, awsClient: AwsClient) => {
       body: JSON.stringify(vote),
     },
   )
-  console.log(awsClient)
   const response = await awsClient.fetch(request)
   console.log({ response })
+  loadNew()
 }
 
-function MainGame({ collectionAddress, itemCount, provider, awsClient, userAddress }: MainGameProps) {
+function MainGame({
+  collectionAddress,
+  itemCount,
+  provider,
+  awsClient,
+  userAddress,
+  login,
+}: MainGameProps) {
   const [imageUrls, setImageUrls] = useState<string[] | null>(null)
   const [nftNames, setNames] = useState<string[] | null>(null)
   const [nftIds, setIds] = useState<string[] | null>(null)
+  const [init, setLoaded] = useState(false)
 
-  async function getTokenIds() {
+  useEffect(() => {
+    console.log('init')
+    function doneLoading() {
+      setLoaded(true)
+    }
+    if (provider) {
+      getTokenIds().then(() => doneLoading())
+    } 
+
+  }, [init])
+
+  const getTokenIds = async () => {
     setImageUrls(['', ''])
     setNames(['Loading...', 'Loading...'])
     let collectionContract: Contract = new Contract(
@@ -86,7 +112,7 @@ function MainGame({ collectionAddress, itemCount, provider, awsClient, userAddre
     let token1Id = Math.floor(Math.random() * itemCount)
     let token0Uri = await collectionContract.tokenURI(token0Id)
     let token1Uri = await collectionContract.tokenURI(token1Id)
-    
+
     let token1JSONContent = await fetchJson(token1Uri)
     let token0JSONContent = await fetchJson(token0Uri)
 
@@ -103,12 +129,19 @@ function MainGame({ collectionAddress, itemCount, provider, awsClient, userAddre
               <NFTDisplay
                 imageUrl={imageUrls[0]}
                 name={nftNames[0]}
-                vote={() => vote({
-                    userId: userAddress,
-                    projectId: collectionAddress,
-                    winnerId: nftIds![0],
-                    loserId: nftIds![1],
-                }, awsClient)}
+                vote={() =>
+                  vote(
+                    {
+                      userId: userAddress,
+                      projectId: collectionAddress,
+                      winnerId: nftIds![0],
+                      loserId: nftIds![1],
+                    },
+                    awsClient,
+                    login,
+                    getTokenIds,
+                  )
+                }
               />
             </Col>
             <Col>
@@ -119,12 +152,19 @@ function MainGame({ collectionAddress, itemCount, provider, awsClient, userAddre
               <NFTDisplay
                 imageUrl={imageUrls[1]}
                 name={nftNames[1]}
-                vote={() => vote({
-                    userId: userAddress,
-                    projectId: collectionAddress,
-                    winnerId: nftIds![1],
-                    loserId: nftIds![0],
-                }, awsClient)}
+                vote={() =>
+                  vote(
+                    {
+                      userId: userAddress,
+                      projectId: collectionAddress,
+                      winnerId: nftIds![1],
+                      loserId: nftIds![0],
+                    },
+                    awsClient,
+                    login,
+                    getTokenIds,
+                  )
+                }
               />
             </Col>
           </Row>
@@ -133,12 +173,6 @@ function MainGame({ collectionAddress, itemCount, provider, awsClient, userAddre
         ''
       )}
       <Divider />
-      <Row justify={'center'}>
-        <Button onClick={() => getTokenIds()}>
-          {' '}
-          {imageUrls && nftNames ? 'Load new' : 'Load'}{' '}
-        </Button>
-      </Row>
     </div>
   )
 }

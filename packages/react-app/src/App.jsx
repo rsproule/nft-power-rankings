@@ -14,7 +14,12 @@ import MenuContext from 'antd/lib/menu/MenuContext'
 import MenuItem from 'antd/lib/menu/MenuItem'
 import { ethers } from 'ethers'
 
-function WalletButton({ provider, loadWeb3Modal, logoutOfWeb3Modal, setUserAddress }) {
+function WalletButton({
+  provider,
+  loadWeb3Modal,
+  logoutOfWeb3Modal,
+  setUserAddress,
+}) {
   const [account, setAccount] = useState('')
   const [rendered, setRendered] = useState('')
 
@@ -63,14 +68,13 @@ function WalletButton({ provider, loadWeb3Modal, logoutOfWeb3Modal, setUserAddre
   )
 }
 
-const login = async (provider, dispatch, setAwsClient) => {
+const login = async (provider, setAwsClient) => {
   const pubKey = await provider.getSigner().getAddress()
   let { data: nonce } = await axios.get(
     `https://krtj8wyxtl.execute-api.us-west-1.amazonaws.com/nonce/${pubKey}`,
   )
   // sign the nonce
   const signature = await provider.getSigner().signMessage(nonce)
-  // console.log({ signature })
   let { data: login } = await axios.post(
     `https://krtj8wyxtl.execute-api.us-west-1.amazonaws.com/login`,
     {
@@ -90,34 +94,13 @@ const login = async (provider, dispatch, setAwsClient) => {
       region: 'us-west-1',
       service: 'execute-api',
     })
-    // console.log(aws)
     setAwsClient(aws)
+    return aws
   }
-}
-
-const vote = async (vote, awsClient, provider) => {
-  vote = {
-    userId: await provider.getSigner().getAddress(),
-    projectId: '1231',
-    voteId: '1',
-    winnerId: 'winner1',
-    loserId: 'loser`1',
-  }
-  const request = await awsClient.sign(
-    'https://krtj8wyxtl.execute-api.us-west-1.amazonaws.com/votes',
-    {
-      method: 'POST',
-      body: JSON.stringify(vote),
-    },
-  )
-
-  const response = await fetch(request)
-  console.log({ response })
+  return null
 }
 
 function App() {
-  // const { dispatch } = React.useContext({})
-  const dispatch = () => {}
   const [awsClient, setAwsClient] = useState(null)
   const { loading, error, data } = useQuery(GET_TRANSFERS)
   const [provider, loadWeb3Modal, logoutOfWeb3Modal] = useWeb3Modal()
@@ -134,12 +117,6 @@ function App() {
     return () => {
       window.ethereum.removeListener('accountsChanged', reload)
       window.ethereum.removeListener('chainChanged', reload)
-    }
-  }, [loading, error, data])
-
-  React.useEffect(() => {
-    if (!loading && !error && data && data.transfers) {
-      console.log({ transfers: data.transfers })
     }
   }, [loading, error, data])
 
@@ -164,21 +141,22 @@ function App() {
         >
           <Row justify={'center'}>
             <Col>
-              <MainGame
-                collectionAddress={'0xE7163cbb4eff60106a08149052b8EDF83C6B1B92'}
-                itemCount={500}
-                provider={provider}
-                awsClient={awsClient}
-                userAddress={userAddress}
-              />
+              {!provider ? (
+                'Need to log in first'
+              ) : (
+                <MainGame
+                  collectionAddress={
+                    '0xE7163cbb4eff60106a08149052b8EDF83C6B1B92'
+                  }
+                  itemCount={500}
+                  provider={provider}
+                  awsClient={awsClient}
+                  userAddress={userAddress}
+                  login={async () => login(provider, setAwsClient)}
+                />
+              )}
             </Col>
           </Row>
-          <Button onClick={() => login(provider, dispatch, setAwsClient)}>
-            Login
-          </Button>
-          <Button onClick={() => vote({}, awsClient, provider)}>
-            Vote {awsClient ? awsClient.accessKeyId : ''}
-          </Button>
         </Content>
       </Layout>
     </Layout>
