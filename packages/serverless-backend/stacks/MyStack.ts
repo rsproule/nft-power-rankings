@@ -1,7 +1,9 @@
 import * as sst from '@serverless-stack/resources'
 import { HttpLambdaAuthorizer } from '@aws-cdk/aws-apigatewayv2-authorizers'
-import {  PolicyStatement } from '@aws-cdk/aws-iam';
-import * as cognito from "@aws-cdk/aws-cognito";
+import { PolicyStatement } from '@aws-cdk/aws-iam'
+import { StartingPosition } from '@aws-cdk/aws-lambda'
+import { ProjectionType } from "@aws-cdk/aws-dynamodb";
+
 
 import {
   ApiAuthorizationType,
@@ -29,6 +31,43 @@ export default class MyStack extends sst.Stack {
       },
     })
 
+    const rankingsTable = new sst.Table(this, 'Rankings', {
+      fields: {
+        projectId: TableFieldType.STRING,
+        itemId: TableFieldType.STRING,
+        elo: TableFieldType.NUMBER,
+        totalWins: TableFieldType.NUMBER,
+        totalLosses: TableFieldType.NUMBER,
+      },
+      primaryIndex: {
+        partitionKey: 'projectId',
+        sortKey: 'itemId',
+      },
+      globalIndexes: {
+        eloIndex: {
+          partitionKey: 'projectId',
+          sortKey: 'elo',
+          indexProps: {
+            projectionType: ProjectionType.ALL,
+          }
+        },
+        // winsIndex: {
+        //   partitionKey: 'projectId',
+        //   sortKey: 'totalWins',
+        //   indexProps: {
+        //     projectionType: ProjectionType.ALL,
+        //   }
+        // },
+        // lossesIndex: {
+        //   partitionKey: 'projectId',
+        //   sortKey: 'totalLosses',
+        //   indexProps: {
+        //     projectionType: ProjectionType.ALL,
+        //   }
+        // },
+      },
+    })
+
     const votesTable = new sst.Table(this, 'Votes', {
       fields: {
         projectId: TableFieldType.STRING,
@@ -39,14 +78,22 @@ export default class MyStack extends sst.Stack {
         partitionKey: 'projectId',
         sortKey: 'user-vote-id',
       },
-      
+      stream: true,
+      consumers: {
+        eloConsumer1: {
+          function: {
+            handler: 'src/consumers/elo.handler',
+            permissions: [rankingsTable],
+            environment: {
+              ELO_TABLE_NAME: rankingsTable.tableName,
+            },
+          },
+          consumerProps: {
+            startingPosition: StartingPosition.TRIM_HORIZON,
+          },
+        },
+      },
     })
-
-    // const cognitoUserPool = new cognito.CfnIdentityPool(this, 'UserPool', {
-    //   developerProviderName: 'eth.user.pool',
-    //   allowUnauthenticatedIdentities: false,
-    // })
-
 
     const cognitoPool = new sst.Auth(this, 'AuthPool', {
       cognito: {
@@ -55,7 +102,6 @@ export default class MyStack extends sst.Stack {
         },
       },
     })
-
 
     // Create a HTTP API
     const api = new sst.Api(this, 'Api', {
@@ -75,10 +121,16 @@ export default class MyStack extends sst.Stack {
           function: {
             handler: 'src/users.login',
             permissions: [usersTable],
-            initialPolicy: [new PolicyStatement({
-              actions: ['cognito-identity:GetOpenIdTokenForDeveloperIdentity'],
-              resources: [`arn:aws:cognito-identity:us-west-1:597616687767:identitypool/${cognitoPool.cognitoIdentityPoolId}`]
-            })],
+            initialPolicy: [
+              new PolicyStatement({
+                actions: [
+                  'cognito-identity:GetOpenIdTokenForDeveloperIdentity',
+                ],
+                resources: [
+                  `arn:aws:cognito-identity:us-west-1:597616687767:identitypool/${cognitoPool.cognitoIdentityPoolId}`,
+                ],
+              }),
+            ],
             environment: {
               USER_TABLE_NAME: usersTable.tableName,
               AUTH_POOL_ID: cognitoPool.cognitoIdentityPoolId,
@@ -98,11 +150,20 @@ export default class MyStack extends sst.Stack {
             permissions: [votesTable],
             environment: {
               VOTE_TABLE_NAME: votesTable.tableName,
-            }
+            },
           },
           authorizationType: ApiAuthorizationType.AWS_IAM,
           // authorizer: {}
         },
+        'GET /rankings/{projectId}' : {
+          function: {
+            handler: 'src/rankings.list',
+            permissions: [rankingsTable],
+            environment: {
+              RANKINGS_TABLE: rankingsTable.tableName,
+            }
+          }
+        }
       },
     })
     cognitoPool.attachPermissionsForAuthUsers([api])
@@ -112,7 +173,8 @@ export default class MyStack extends sst.Stack {
       ApiEndpoint: api.url,
       votesTable: votesTable.tableName,
       usersTable: usersTable.tableName,
-      cognitoPool: cognitoPool.cognitoIdentityPoolId
+      rankingsTable: rankingsTable.tableName,
+      cognitoPool: cognitoPool.cognitoIdentityPoolId,
     })
   }
 }

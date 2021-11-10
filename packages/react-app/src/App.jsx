@@ -84,8 +84,6 @@ const login = async (provider, setAwsClient) => {
     },
   )
 
-  console.log({ login })
-
   if (login && login.Credentials && login.Credentials.AccessKeyId) {
     const aws = new AwsClient({
       accessKeyId: login.Credentials.AccessKeyId,

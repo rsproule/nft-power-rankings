@@ -88,7 +88,7 @@ const postBodyParse = (body: StringMap) => {
   } as Vote
 }
 
-interface Vote {
+export interface Vote {
   userId: string
   projectId: string
   voteId: string

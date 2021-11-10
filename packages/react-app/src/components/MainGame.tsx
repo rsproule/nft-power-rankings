@@ -1,12 +1,13 @@
 import { Contract } from 'ethers'
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { abi as ERC721 } from '@openzeppelin/contracts/build/contracts/ERC721.json'
 import { Provider } from '@ethersproject/providers'
 import { fetchJson } from '@ethersproject/web'
-import { Button, Col, Row, Image, Card, Empty, Divider } from 'antd'
+import { Button, Col, Row, Image, Card,Divider } from 'antd'
 import axios from 'axios'
 import { AwsClient } from 'aws4fetch'
 import Meta from 'antd/lib/card/Meta'
+import Leaderboard from './Leaderboard'
 
 const login = async (provider, dispatch, setAwsClient) => {
   const pubKey = await provider.getSigner().getAddress()
@@ -56,7 +57,7 @@ type Vote = {
 }
 
 const vote = async (
-  vote: Vote,
+  voteO: Vote,
   awsClient: AwsClient,
   login: any,
   loadNew: any,
@@ -68,12 +69,21 @@ const vote = async (
     'https://krtj8wyxtl.execute-api.us-west-1.amazonaws.com/votes',
     {
       method: 'POST',
-      body: JSON.stringify(vote),
+      body: JSON.stringify(voteO),
     },
   )
   const response = await awsClient.fetch(request)
   console.log({ response })
-  loadNew()
+  if (response.status === 200) {
+    loadNew()
+  } else if (response.status === 403) {
+    awsClient = await login()
+    await vote(voteO, awsClient, login, loadNew)
+  } else if (response.status === 409) {
+    loadNew()
+  } else {
+    alert('Error voting')
+  }
 }
 
 function MainGame({
@@ -87,18 +97,12 @@ function MainGame({
   const [imageUrls, setImageUrls] = useState<string[] | null>(null)
   const [nftNames, setNames] = useState<string[] | null>(null)
   const [nftIds, setIds] = useState<string[] | null>(null)
-  const [init, setLoaded] = useState(false)
 
   useEffect(() => {
-    console.log('init')
-    function doneLoading() {
-      setLoaded(true)
-    }
     if (provider) {
-      getTokenIds().then(() => doneLoading())
-    } 
-
-  }, [init])
+      getTokenIds()
+    }
+  }, [])
 
   const getTokenIds = async () => {
     setImageUrls(['', ''])
@@ -108,8 +112,12 @@ function MainGame({
       ERC721,
       provider,
     )
-    let token0Id = Math.floor(Math.random() * itemCount)
-    let token1Id = Math.floor(Math.random() * itemCount)
+    let token0Id = Math.floor(Math.random() * itemCount) + 1
+    let token1Id = Math.floor(Math.random() * itemCount) + 1
+    // hack, this can still produce duplicates
+    if (token0Id === token1Id) {
+      token1Id = Math.floor(Math.random() * itemCount) + 1
+    }
     let token0Uri = await collectionContract.tokenURI(token0Id)
     let token1Uri = await collectionContract.tokenURI(token1Id)
 
@@ -173,6 +181,7 @@ function MainGame({
         ''
       )}
       <Divider />
+      <Leaderboard projectId={collectionAddress} />
     </div>
   )
 }
