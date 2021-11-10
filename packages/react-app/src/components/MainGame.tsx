@@ -57,13 +57,6 @@ type Vote = {
 }
 
 const vote = async (vote: Vote, awsClient: AwsClient) => {
-//   vote = {
-//     userId: await provider.getSigner().getAddress(),
-//     projectId: '1231',
-//     voteId: '1',
-//     winnerId: 'winner1',
-//     loserId: 'loser`1',
-//   }
   const request = await awsClient.sign(
     'https://krtj8wyxtl.execute-api.us-west-1.amazonaws.com/votes',
     {
@@ -71,8 +64,8 @@ const vote = async (vote: Vote, awsClient: AwsClient) => {
       body: JSON.stringify(vote),
     },
   )
-
-  const response = await fetch(request)
+  console.log(awsClient)
+  const response = await awsClient.fetch(request)
   console.log({ response })
 }
 

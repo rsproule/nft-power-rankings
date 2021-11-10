@@ -1,7 +1,7 @@
-import { APIGatewayProxyEventV2 } from 'aws-lambda'
-import { APIGatewayProxyHandlerV2 } from 'aws-lambda'
+import { APIGatewayProxyEventV2, APIGatewayProxyHandlerV2 } from 'aws-lambda'
 import { StringMap } from 'aws-lambda/trigger/cognito-user-pool-trigger/_common'
 import AWS from 'aws-sdk'
+import { errorResponse, getPublicKeyFromEvent } from './common'
 const dynamoDB: AWS.DynamoDB.DocumentClient = new AWS.DynamoDB.DocumentClient({
   region: 'us-west-1',
 })
@@ -9,7 +9,9 @@ const dynamoDB: AWS.DynamoDB.DocumentClient = new AWS.DynamoDB.DocumentClient({
 export const post: APIGatewayProxyHandlerV2 = async (
   event: APIGatewayProxyEventV2,
 ) => {
-  if (!validateRequest(event)) return { statusCode: 400, body: 'Bad Request' }
+  const publicKey = getPublicKeyFromEvent(event)
+  if (!validateRequest(event, publicKey))
+    return errorResponse('invalid request', 400)
   const request = JSON.parse(event.body as string) as StringMap
   let voteWrite
   try {
@@ -38,11 +40,14 @@ export const post: APIGatewayProxyHandlerV2 = async (
   return {
     statusCode: 200,
     headers: { 'Content-Type': 'text/plain' },
-    body: `${voteWrite.$response}`,
+    body: `${JSON.stringify(voteWrite.$response.data)}`,
   }
 }
 
-const validateRequest = (event: APIGatewayProxyEventV2) => {
+const validateRequest = (
+  event: APIGatewayProxyEventV2,
+  authedUserId: string,
+) => {
   if (event.body === undefined) {
     return false
   }
@@ -58,6 +63,9 @@ const validateRequest = (event: APIGatewayProxyEventV2) => {
   }
 
   if (body.winnerId === body.loserId) {
+    return false
+  }
+  if (body.userId !== authedUserId) {
     return false
   }
   return true

@@ -52,14 +52,14 @@ export default class MyStack extends sst.Stack {
       cognito: {
         userPool: {
           userPoolName: 'eth-user-pool',
-        }
+        },
       },
-      
     })
+
 
     // Create a HTTP API
     const api = new sst.Api(this, 'Api', {
-      cors: true,
+      accessLog: true,
       routes: {
         'GET /nonce/{id}': {
           function: {
@@ -100,12 +100,12 @@ export default class MyStack extends sst.Stack {
               VOTE_TABLE_NAME: votesTable.tableName,
             }
           },
-          // authorizationType: ApiAuthorizationType.AWS_IAM,
-          
-          
+          authorizationType: ApiAuthorizationType.AWS_IAM,
+          // authorizer: {}
         },
       },
     })
+    cognitoPool.attachPermissionsForAuthUsers([api])
 
     // Show the endpoint in the output
     this.addOutputs({
