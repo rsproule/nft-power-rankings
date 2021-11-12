@@ -7,12 +7,8 @@ import { AwsClient } from 'aws4fetch'
 
 import GET_TRANSFERS from './graphql/subgraph'
 import MainGame from './components/MainGame'
-import { Content, Header } from 'antd/lib/layout/layout'
-import { Button, Col, Layout, Row } from 'antd'
-import Sider from 'antd/lib/layout/Sider'
-import MenuContext from 'antd/lib/menu/MenuContext'
-import MenuItem from 'antd/lib/menu/MenuItem'
-import { ethers } from 'ethers'
+import { Content, Footer, Header } from 'antd/lib/layout/layout'
+import { Button, Col, Divider, Layout, Row, Typography } from 'antd'
 
 function WalletButton({
   provider,
@@ -113,8 +109,10 @@ function App() {
       window.ethereum.on('chainChanged', reload)
     }
     return () => {
-      window.ethereum.removeListener('accountsChanged', reload)
-      window.ethereum.removeListener('chainChanged', reload)
+      if (window.ethereum) {
+        window.ethereum.removeListener('accountsChanged', reload)
+        window.ethereum.removeListener('chainChanged', reload)
+      }
     }
   }, [loading, error, data])
 
@@ -156,6 +154,48 @@ function App() {
             </Col>
           </Row>
         </Content>
+        <Divider />
+        <Footer style={{ textAlign: 'center' }}>
+          <Layout>
+            <Content
+              style={{
+                margin: '24px 16px 0',
+                overflow: 'initial',
+              }}
+            >
+                    <Typography.Paragraph>
+                      {' '}
+                      <b>How it works: </b> Every user signs in with their
+                      ethereum wallet (metamask suggested). Then is prompted
+                      with 2 random peices from the{' '}
+                      <a href="https://opensea.io/collection/psvc">
+                        Perserverance collection by Giorgio Balbi
+                      </a>{' '}
+                      which is a beautiful collection of procedurally generated
+                      paintings. The user then can vote on which of the 2
+                      paintings they like the most. In order to authenticate
+                      with the backend, the user will be forced to sign a nonce.
+                      This is a free operation and the user will only be forced
+                      to do this once. This vote is sent to the backend where it
+                      is used to calculate the new ELO rating for the painting.
+                      The top 100 items are loaded and displayed to below the
+                      game window. Further features to display and analyze the
+                      ranking data will be added in the future.
+                    </Typography.Paragraph>
+            </Content>
+          </Layout>
+          <Divider />
+          <div style={{ padding: '10px' }}>{'Built by rsproule <3️ '}</div>
+          <div style={{ padding: '10px' }}>
+            {' '}
+            Follow me on Twitter:{' '}
+            <a href="https://twitter.com/sprouleth">@sprouleth</a>
+          </div>
+          <div style={{ padding: '10px' }}>
+            Send me some muns if you want to support dumb projects like this:{' '}
+            <b>sproule.eth</b>
+          </div>
+        </Footer>
       </Layout>
     </Layout>
   )
